@@ -32,7 +32,7 @@ object WebSocketApp extends App {
     case req@ GET -> Root / "wsecho" =>
       val q = unboundedQueue[WebSocketFrame]
       val src = q.dequeue.collect {
-        case Text(msg, _) => Text("You sent the server: " + msg)
+        case Text(msg, _) => Text("Echoing: " + msg)
       }
 
       WS(Exchange(src, q.enqueue))
