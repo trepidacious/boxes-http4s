@@ -1,9 +1,15 @@
-var wsUri = "ws://localhost:8080/http4s/wsecho";
+var wsUri = "ws://localhost:8080/http4s/boxes";
 var output;
 
 function init() {
     output = document.getElementById("output");
     testWebSocket();
+}
+
+function clickSend() {
+    var typed = document.getElementById("txtData").value
+    doSend(typed);
+    writeToScreen("SENDING: " + typed);
 }
 
 function testWebSocket() {
@@ -23,7 +29,7 @@ function onClose(evt) {
 }
 function onMessage(evt) {
     writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
-    websocket.close();
+//    websocket.close();
 }
 function onError(evt) {
     writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
