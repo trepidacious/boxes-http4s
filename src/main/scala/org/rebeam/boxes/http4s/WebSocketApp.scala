@@ -32,7 +32,7 @@ object WebSocketApp extends App {
       val src = awakeEvery(1.seconds)(Strategy.DefaultStrategy, DefaultScheduler).map{ d => Text(s"Ping! $d") }
       val sink: Sink[Task, WebSocketFrame] = Process.constant {
         case Text(t, _) => Task.delay( println(t))
-        case f       => Task.delay(println(s"Unknown type: $f"))
+        case f          => Task.delay(println(s"Unknown type: $f"))
       }
       WS(Exchange(src, sink))
 
