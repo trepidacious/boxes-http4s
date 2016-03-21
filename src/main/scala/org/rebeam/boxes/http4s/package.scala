@@ -5,6 +5,6 @@ import scalaz.stream.async._
 import scalaz.stream.async.mutable.Queue
 
 package object http4s {
-  //FIXME this should be a circularBuffer - implement this ASAP when it is in scalaz-stream release used by http4s
-  def boxQueue[A](implicit S: Strategy): Queue[A] = unboundedQueue[A](S)
+  //TODO what's the best size? 1 should be fine when only the most recent state matters.
+  def boxQueue[A]: Queue[A] = circularBuffer[A](1)
 }
