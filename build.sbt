@@ -13,4 +13,6 @@ libraryDependencies ++= Seq(
   "org.rebeam" %% "boxes-core" % "0.1-SNAPSHOT"
 )
 
+scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation", "-feature")
+
 fork in run := true
