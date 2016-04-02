@@ -19,10 +19,7 @@ object RepeatEvalProtoApp extends App {
   
   val s = atomic { create("a") }
   
-  val o = new AsyncObserver()
-  atomic { observe(o) }
-  
-  val p = o.process
+  val p = atomic { BoxProcess.observeByProcess }
 
   val printChanges = p.map(r => ">> " + s.get(r)).to(io.stdOutLines)
 

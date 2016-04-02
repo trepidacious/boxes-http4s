@@ -17,7 +17,7 @@ import scalaz.stream.time.awakeEvery
 
 
 import org.rebeam.boxes.core._
-import org.rebeam.boxes.stream._
+import org.rebeam.boxes.stream.BoxProcess._
 import BoxUtils._
 import BoxTypes._
 import BoxScriptImports._
@@ -49,10 +49,10 @@ object WebSocketApp extends App {
 
     case req@ GET -> Root / "boxes" =>
     
-      val ao = new AsyncObserver()
-      atomic { observe(ao) }
       
-      val src = ao.process.map(r => Text(data.get(r)))
+      val revisions = atomic { observeByProcess }
+      
+      val src = revisions.map(r => Text(data.get(r)))
 
       //Treat received text as commits to data
       val sink: Sink[Task, WebSocketFrame] = Process.constant {

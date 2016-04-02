@@ -15,7 +15,16 @@ import Scalaz._
 
 import org.rebeam.boxes.core.util.Lock
 
-class AsyncObserver extends Observer {
+object BoxProcess {
+  def observeByProcess: BoxScript[Process[Task, Revision]] = {
+    val ao = new AsyncObserver()
+    for {
+      _ <- observe(ao)
+    } yield ao.process
+  }
+}
+
+private class AsyncObserver extends Observer {
   
   val lock = Lock()
   var pendingPull = none[Revision => Unit]
