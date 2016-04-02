@@ -49,18 +49,6 @@ object WebSocketApp extends App {
 
     case req@ GET -> Root / "boxes" =>
     
-      // We can use a queue, but AsyncObserver produces a process that references
-      // the observer, so observer is not GCed, and can be extended to handle for
-      // example only sending deltas to data
-      //
-      // View the contents of data, and on changes enqueue the new value to dataQ immediately
-      // val dataQ = boxQueue[WebSocketFrame]
-      // 
-      // val enqueueObserver = Observer(r => dataQ.enqueueOne(Text(data.get(r))).run)
-      // atomic { observe(enqueueObserver) }
-      // 
-      // val src = dataQ.dequeue
-
       val ao = new AsyncObserver()
       atomic { observe(ao) }
       
