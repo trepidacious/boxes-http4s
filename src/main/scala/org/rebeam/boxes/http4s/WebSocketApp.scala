@@ -47,9 +47,7 @@ object WebSocketApp extends App {
       }
       WS(Exchange(src, q.enqueue))
 
-    case req@ GET -> Root / "boxes" =>
-    
-      
+    case req@ GET -> Root / "boxes" =>    
       val revisions = atomic { observeByProcess }
       
       val src = revisions.map(r => Text(data.get(r)))
