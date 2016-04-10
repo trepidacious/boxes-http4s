@@ -39,30 +39,43 @@
     }
   }
 
+  function ping() {
+    doSend('{}');
+    writeToScreen("ping");
+    setTimeout(ping, 10000);
+  }
+
   function testWebSocket() {
-      websocket = new WebSocket(wsUri);
-      websocket.onopen = onOpen;
-      websocket.onclose = onClose;
-      websocket.onmessage = onMessage;
-      websocket.onerror = onError;
+    websocket = new WebSocket(wsUri);
+    websocket.onopen = onOpen;
+    websocket.onclose = onClose;
+    websocket.onmessage = onMessage;
+    websocket.onerror = onError;
+    
+    // setTimeout(ping, 10000);
   }
 
   function onOpen(evt) {
-      writeToScreen("CONNECTED");
+      writeToScreen("connected");
   }
+  
   function onClose(evt) {
-      writeToScreen("DISCONNECTED");
+      writeToScreen("disconnected");
   }
+  
   function onMessage(evt) {
-      writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
+      writeToScreen('<span style="color: blue;">' + evt.data + '</span>');
   }
+  
   function onError(evt) {
-      writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
+      writeToScreen('<span style="color: red;">error </span>' + evt.data);
   }
+  
   function doSend(message) {
-      writeToScreen("SENT: " + message);
+      writeToScreen("sent: " + message);
       websocket.send(message);
   }
+  
   function writeToScreen(message) {
       var pre = document.createElement("p");
       pre.style.wordWrap = "break-word";

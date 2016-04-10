@@ -35,8 +35,6 @@ import org.rebeam.boxes.persistence.json._
 import scalaz._
 import Scalaz._
 
-import Data._
-
 object WebSocketApp extends App {
 
   case class Person(name: Box[String], age: Box[Int]) {
@@ -68,11 +66,11 @@ object WebSocketApp extends App {
     case req@ GET -> Root / "person" =>    
       val revisions = atomic { observeByProcess }
       
-      val src = revisions.map(r => update(r, p))
+      val src = revisions.map(r => BoxOutgoing.update(r, p))
 
       //Treat received text as commits to data
       val sink: Sink[Task, WebSocketFrame] = Process.constant {
-        case Text(t, _) => Task.delay( applyCommit(t, p) )
+        case Text(t, _) => Task.delay( BoxIncoming(t).run(p) )
       }
 
       WS(Exchange(src, sink))
