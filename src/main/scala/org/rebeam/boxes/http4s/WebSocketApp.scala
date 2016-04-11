@@ -56,11 +56,6 @@ object WebSocketApp extends App {
 
   class LinkingQueue
 
-  // def idAndTokens(json: String): Option[(Long, TokenReader)] = {
-  //   val tokens = JsonTokenReader(json)
-  //   tokens.
-  // }
-
   val route = HttpService {
     
     case req@ GET -> Root / "person" =>    
