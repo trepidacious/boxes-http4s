@@ -76,7 +76,7 @@ object WebSocketApp extends App {
     case req@ GET -> Root / "ws" =>
       val src = awakeEvery(1.seconds)(Strategy.DefaultStrategy, DefaultScheduler).map{ d => Text(s"Ping! $d") }
       val sink: Sink[Task, WebSocketFrame] = Process.constant {
-        case Text(t, _) => Task.delay( println(t))
+        case Text(t, _) => Task.delay(println(t))
         case f          => Task.delay(println(s"Unknown type: $f"))
       }
       WS(Exchange(src, sink))
@@ -104,7 +104,7 @@ object WebSocketApp extends App {
 
   BlazeBuilder.bindHttp(8080)
     .withWebSockets(true)
-    .mountService(route, "/http4s")
+    .mountService(route, "/api")
     .run
     .awaitShutdown()
 

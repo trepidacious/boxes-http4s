@@ -82,9 +82,9 @@ object BoxIncoming {
         var name = dictEntryNameOption(tokens.remove(0))
         if (name.isEmpty) throw new IncorrectTokenException("token not dict entry as expected")
         if (name == Some("boxId")) {
-          boxId = some(JsonCasting.toLong(tokens.remove(0)))
+          boxId = some(JsonMaximalCasting.toLong(tokens.remove(0)))
         } else if (name == Some("revisionIndex")) {
-          revisionIndex = some(JsonCasting.toLong(tokens.remove(0)))
+          revisionIndex = some(JsonMaximalCasting.toLong(tokens.remove(0)))
         } else if (name == Some("boxContents")) {
           boxContentsFound = true;
         } else {
@@ -98,7 +98,7 @@ object BoxIncoming {
         if (tokens.size < 2) throw new IncorrectTokenException("< 2 tokens when requiring more fields")
 
         //The last token must be a long value for one or the other of the fields
-        val l = JsonCasting.toInt(tokens.remove(tokens.size - 1))
+        val l = JsonMaximalCasting.toInt(tokens.remove(tokens.size - 1))
         
         //Now the last token must be the dict entry - find out which field we got!
         var name = dictEntryNameOption(tokens.remove(tokens.size - 1))
@@ -116,7 +116,8 @@ object BoxIncoming {
       if (tokens.size > 0) {
         //Note we wrap the BufferTokenReader in a JsonTokenReader to apply
         //appropriate casting to the tokens when using e.g. pullLong, pullFloat etc.
-        val commitOption = (revisionIndex |@| boxId){ BoxCommit(_, _, JsonTokenReader(BufferTokenReader(tokens.toList))) }
+        //We use "maximal" casting to tolerate numbers as strings.
+        val commitOption = (revisionIndex |@| boxId){ BoxCommit(_, _, JsonTokenReader.maximalCasting(BufferTokenReader(tokens.toList))) }
         commitOption.getOrElse(throw new IncorrectTokenException("invalid contents"))
       } else {
         throw new IncorrectTokenException("no tokens left for box contents")        
