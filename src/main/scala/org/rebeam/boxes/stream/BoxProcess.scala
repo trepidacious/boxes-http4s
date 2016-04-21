@@ -24,56 +24,81 @@ object BoxProcess {
   }
 }
 
-private class AsyncObserver extends Observer {
+trait Dispatcher[I, O] extends OutgoingDispatcher[O] {
+  /**
+   * Called when client sends data
+   */
+  def fromClient(msg: I): Unit
+}
+
+trait OutgoingDispatcher[T] {
+  /**
+   * Called when there is a new revision available
+   */
+  def observe(newR: Revision): Unit
   
-  val lock = Lock()
-  var pendingPull = none[Revision => Unit]
-  var pendingRev = none[Revision]
+  /**
+   * Called to check for new data to send to client 
+   */
+  def toClient(): Option[T]
   
-  def observe(newR: Revision): Unit = lock {
-    //If we have a pull function pending, deliver to it immediately, otherwise
-    //store the new revision for later
-    pendingPull match {
-      case Some(pull) => 
-        //TODO we could coalesce the newR with any pendingRev first, here
-        //we just ignore it
-        //Now clear pendingRev since we will deliver it, and pendingPull since
-        //it is about to be delivered to
-        pendingRev = None
-        pendingPull = None
-        //Important that get the correct state BEFORE calling pull, since it
-        //may attempt to immediately reregister
-        pull.apply(newR)
-        
-      case None =>
-        //TODO we could coalesce the newR with any current pendingRev first, here
-        //we just overwrite it
-        pendingRev = Some(newR)
+  /**
+   * Used to lock while handling data
+   */
+  def lock: Lock
+}
+
+private class DispatchObserver[T](d: OutgoingDispatcher[T]) extends Observer {
+  
+  var pendingPull = none[T => Unit]
+  
+  def observe(newR: Revision): Unit = d.lock {
+    d.observe(newR)
+    
+    //If we have a pending pull and dispatcher now has a
+    //message for client, give the message to the pull
+    for {
+      pull <- pendingPull
+      msg <- d.toClient
+    } {
+      //Clear this before calling pull, in case we get called back immediately
+      pendingPull = None
+      pull.apply(msg)
     }
   }
-  
-  def pullEither(pullE: (Throwable \/ Revision) => Unit): Unit = pull((r: Revision) => pullE(\/-(r)))
-  
-  def pull(pullF: Revision => Unit): Unit = lock {
+    
+  def pull(pullF: T => Unit): Unit = d.lock {
     //Only one pull registered at a time
     if (pendingPull.isDefined) throw new RuntimeException (
-      "AsyncObserver pull called when pull was already pending - " +
+      "DispatchObserver pull called when pull was already pending - " +
       "call pull again only when previous pull function is called back"
     )
     
     //Deliver data straight away if we have it, otherwise store the pull as pending
-    pendingRev match {
-      case Some(r) => 
-        //Clear pendingRev, since we are about to deliver it
-        pendingRev = None
-        //Important that get the correct state BEFORE calling pull, since it
-        //may attempt to immediately reregister
-        pullF.apply(r)
-        
-      case None => 
-        pendingPull = Some(pullF)
+    d.toClient match {
+      case Some(s) => pullF.apply(s)        
+      case None => pendingPull = Some(pullF)
     }
   }
   
-  val process: Process[Task, Revision] = Process.repeatEval(Task.async { (cb: Throwable \/ Revision => Unit) => pullEither(cb)})
+  def pullEither(pullE: (Throwable \/ T) => Unit): Unit = pull((t: T) => pullE(\/-(t)))
+  val process: Process[Task, T] = Process.repeatEval(Task.async { (cb: Throwable \/ T => Unit) => pullEither(cb)})
 }
+
+/**
+ * This just performs outgoing dispatch of revisions, by holding on to the most 
+ * recent one, overwriting any previous values.
+ */
+private class BasicOutgoingDispatcher extends OutgoingDispatcher[Revision] {
+  var pendingRev = none[Revision]
+  override def observe(newR: Revision): Unit = pendingRev = Some(newR)
+  override def toClient(): Option[Revision] = {
+    val r = pendingRev
+    pendingRev = None
+    r
+  }
+  override val lock = Lock()
+}
+
+private class AsyncObserver extends DispatchObserver(new BasicOutgoingDispatcher)
+

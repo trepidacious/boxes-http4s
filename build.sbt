@@ -13,9 +13,7 @@ libraryDependencies ++= Seq(
   "org.http4s"  %% "http4s-argonaut"      % http4sVersion,
 
   "org.rebeam"  %% "boxes-core"           % "0.1-SNAPSHOT",
-  
-  "io.argonaut" %% "argonaut"             % argonautVersion,
-  
+    
   "org.log4s"   %% "log4s"                % "1.2.1",
   
   "org.slf4j"   % "slf4j-simple"          % "1.7.21"
