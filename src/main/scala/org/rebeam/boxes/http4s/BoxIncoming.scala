@@ -41,7 +41,7 @@ sealed trait BoxIncoming {
 //at compile-time that we will use the right type T at run-time.
 case class BoxCommit(revisionIndex: Long, boxId: Long, boxTokens: TokenReader) extends BoxIncoming {
   def run[T: Format](t: T): Unit = {
-    Shelf.runReader(implicitly[Format[T]].replace(t, boxId), boxTokens)    
+    Shelf.runRepeatedReader(implicitly[Format[T]].replace(t, boxId), boxTokens)    
   }
 }
 
