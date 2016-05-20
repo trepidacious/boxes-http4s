@@ -51,14 +51,14 @@ object BoxIncomingCommand {
     * Carries the revision index since this is useful in tracking where the client
     * is up to.
     */
-  case class BoxPing(revisionIndex: Long) extends BoxIncomingCommand {
+  case class Ping(revisionIndex: Long) extends BoxIncomingCommand {
     def run[M: Format](model: M)(dataTokens: List[Token]) = {}
   }
   /**
     * Trigger replacement of the contents of Box with given boxId.
     * The new contents are decoded from the data tokens.
     */
-  case class BoxReplace(revisionIndex: Long, boxId: Long) extends BoxIncomingCommand {
+  case class Replace(revisionIndex: Long, boxId: Long) extends BoxIncomingCommand {
     def run[M: Format](model: M)(dataTokens: List[Token]): Unit = {
       Shelf.runRepeatedReader(implicitly[Format[M]].replace(model, boxId), JsonTokenReader.maximalCasting(BufferTokenReader(dataTokens)))    
     }
@@ -67,7 +67,7 @@ object BoxIncomingCommand {
     * Trigger modification of a data item containing the Box with given boxId.
     * The modification action is decoded from the data tokens.
     */
-  case class BoxModify(revisionIndex: Long, boxId: Long) extends BoxIncomingCommand {
+  case class Modify(revisionIndex: Long, boxId: Long) extends BoxIncomingCommand {
     def run[M: Format](model: M)(dataTokens: List[Token]): Unit = {
       Shelf.runRepeatedReader(implicitly[Format[M]].modify(model, boxId), JsonTokenReader.maximalCasting(BufferTokenReader(dataTokens)))    
     }    
@@ -88,20 +88,20 @@ object BoxIncoming {
   
   //Format for each BoxIncomingCommand type, then for BoxIncomingMessage itself
   implicit val boxIncomingCommandFormat = {
-    implicit val boxPingFormat = productFormat1(BoxPing.apply)("revisionIndex")
-    implicit val boxReplaceFormat = productFormat2(BoxReplace.apply)("revisionIndex", "boxId")
-    implicit val boxModifyFormat = productFormat2(BoxModify.apply)("revisionIndex", "boxId")
+    implicit val pingFormat = productFormat1(Ping.apply)("revisionIndex")
+    implicit val replaceFormat = productFormat2(Replace.apply)("revisionIndex", "boxId")
+    implicit val modifyFormat = productFormat2(Modify.apply)("revisionIndex", "boxId")
     
     taggedUnionFormat[BoxIncomingCommand](
       {
-        case "ping" => boxPingFormat
-        case "replace" => boxReplaceFormat
-        case "modify" => boxModifyFormat
+        case "ping" => pingFormat
+        case "replace" => replaceFormat
+        case "modify" => modifyFormat
       },
       {
-        case p: BoxPing => Tagged("ping", p)
-        case r: BoxReplace => Tagged("replace", r)
-        case m: BoxModify => Tagged("modify", m)
+        case p: Ping => Tagged("ping", p)
+        case r: Replace => Tagged("replace", r)
+        case m: Modify => Tagged("modify", m)
       }
     )
   }
