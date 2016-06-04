@@ -46,7 +46,7 @@ object WebSocketApp extends App {
     def default(name: String, age: Int): BoxScript[Person] = (create(name) |@| create(age)){Person(_, _)}
   }
 
-  implicit val personFormat = nodeFormat2(Person.apply, Person.default)("name", "age", nodeName = PresentationName("Person"), boxLinkStrategy = IdLinks, nodeLinkStrategy = EmptyLinks)
+  implicit val personFormat = nodeFormat2(Person.apply, Person.default)("name", "age")
 
   val p = atomic { Person.default("bob", 42) }
 
@@ -54,18 +54,19 @@ object WebSocketApp extends App {
 
   val data = atomic { create("a") }
 
-  class LinkingQueue
-
   val route = HttpService {
     
     case req@ GET -> Root / "person" =>    
-      val revisions = atomic { observeByProcess }
-      
-      val src = revisions.map(r => BoxOutgoing.update(r, p))
+      // val revisions = atomic { observeRevisionByProcess }
+      // 
+      // val src = revisions.map(r => BoxOutgoing.update(r, p))
+
+      val src = atomic { observeTextByProcess(p) }
 
       //Treat received text as commits to data
       val sink: Sink[Task, WebSocketFrame] = Process.constant {
-        case Text(t, _) => Task.delay( BoxIncoming(t).run(p) )
+        //FIXME need to get ids from dispatcher
+        case Text(t, _) => Task.delay( BoxIncoming(t).run(p, IdsDefault()) )
       }
 
       WS(Exchange(src, sink))
@@ -89,7 +90,7 @@ object WebSocketApp extends App {
       WS(Exchange(src, q.enqueue))
 
     case req@ GET -> Root / "boxes" =>    
-      val revisions = atomic { observeByProcess }
+      val revisions = atomic { observeRevisionByProcess }
       
       val src = revisions.map(r => Text(data.get(r)))
 

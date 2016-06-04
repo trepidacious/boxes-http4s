@@ -15,21 +15,24 @@ import Scalaz._
 
 import org.rebeam.boxes.core.util.Lock
 
-object BoxProcess {
-  def observeByProcess: BoxScript[Process[Task, Revision]] = {
-    val ao = new AsyncObserver()
-    for {
-      _ <- observe(ao)
-    } yield ao.process
-  }
-}
+import org.http4s._
+import org.http4s.dsl._
+import org.http4s.server.websocket._
+import org.http4s.websocket.WebsocketBits._
 
-trait Dispatcher[I, O] extends OutgoingDispatcher[O] {
-  /**
-   * Called when client sends data
-   */
-  def fromClient(msg: I): Unit
-}
+import org.rebeam.boxes.persistence._
+import org.rebeam.boxes.persistence.formats._
+import org.rebeam.boxes.persistence.json._
+import org.rebeam.boxes.persistence.buffers._
+import PrimFormats._
+import ProductFormats._
+import CollectionFormats._
+import NodeFormats._
+import BasicFormats._
+import TaggedUnionFormats._
+
+import org.rebeam.boxes.http4s._
+import BoxOutgoing._
 
 trait OutgoingDispatcher[T] {
   /**
@@ -46,6 +49,13 @@ trait OutgoingDispatcher[T] {
    * Used to lock while handling data
    */
   def lock: Lock
+}
+
+trait Dispatcher[I, O] extends OutgoingDispatcher[O] {
+  /**
+   * Called when client sends data
+   */
+  def fromClient(msg: I): Unit
 }
 
 private class DispatchObserver[T](d: OutgoingDispatcher[T]) extends Observer {
@@ -86,10 +96,10 @@ private class DispatchObserver[T](d: OutgoingDispatcher[T]) extends Observer {
 }
 
 /**
- * This just performs outgoing dispatch of revisions, by holding on to the most 
- * recent one, overwriting any previous values.
- */
-private class BasicOutgoingDispatcher extends OutgoingDispatcher[Revision] {
+  * This just performs outgoing dispatch of revisions, by holding on to the most 
+  * recent one, overwriting any previous values.
+  */
+private class RevisionOutgoingDispatcher extends OutgoingDispatcher[Revision] {
   var pendingRev = none[Revision]
   override def observe(newR: Revision): Unit = pendingRev = Some(newR)
   override def toClient(): Option[Revision] = {
@@ -100,5 +110,69 @@ private class BasicOutgoingDispatcher extends OutgoingDispatcher[Revision] {
   override val lock = Lock()
 }
 
-private class AsyncObserver extends DispatchObserver(new BasicOutgoingDispatcher)
+/**
+  * This just performs outgoing dispatch of revisions, by holding on to the most 
+  * recent one, overwriting any previous values. Revisions are converted into
+  * BoxOutgoing instances as appropriate, starting from a given document, and
+  * then BoxOutgoing is converted to Text using json encoding.
+  * In addition, accepts Text from client and uses BoxIncoming to decode and run
+  * using the same ids as outgping messages.
+  */
+private class BoxTextDispatcher[T: Format](val document: T) extends Dispatcher[String, Text] {
+
+  override val lock = Lock()
+  
+  //Use persistent ids
+  val ids = IdsWeak()
+  var pendingRev = none[Revision]
+  override def observe(newR: Revision): Unit = pendingRev = Some(newR)
+  override def toClient(): Option[Text] = {
+    val r = pendingRev
+    pendingRev = None
+    r.map(r => BoxOutgoing.update(r, document, ids))
+  }
+
+  /**
+   * Called when client sends data
+   */
+  def fromClient(msg: String): Unit = lock {
+    BoxIncoming(msg, ids).run(document, ids)
+  }
+}
+
+/**
+  * Easy access to a Process[Task, Revision] using an AsyncObserver
+  */
+object BoxProcess {
+  
+  def observeByProcess[T](obs: => DispatchObserver[T]): BoxScript[Process[Task, T]] = {
+    val ao = obs
+    for {
+      _ <- observe(ao)
+    } yield ao.process
+  }
+  
+  def observeRevisionByProcess: BoxScript[Process[Task, Revision]] = 
+    observeByProcess{new DispatchObserver(new RevisionOutgoingDispatcher())}
+  
+  def observeTextByProcess[D: Format](document: D): BoxScript[Process[Task, Text]] = 
+    observeByProcess{new DispatchObserver(new BoxTextDispatcher(document))}
+
+}
+
+object BoxExchange {
+  def apply[D: Format](document: D): BoxScript[Exchange[WebSocketFrame, WebSocketFrame]] = {
+    val dispatcher = new BoxTextDispatcher(document)
+    val observer = new DispatchObserver(dispatcher)
+    
+    //Treat received text as commits to data
+    val sink: Sink[Task, WebSocketFrame] = Process.constant {
+      case Text(t, _) => Task.delay( dispatcher.fromClient(t) )
+    }
+    
+    for {
+      _ <- observe(observer)
+    } yield Exchange(observer.process, sink)
+  }
+}
 

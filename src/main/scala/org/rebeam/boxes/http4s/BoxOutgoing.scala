@@ -24,23 +24,38 @@ import ProductFormats._
 import CollectionFormats._
 import NodeFormats._
 import BasicFormats._
+import TaggedUnionFormats._
 
 import org.rebeam.boxes.persistence.json._
 
 import scala.collection.mutable.ArrayBuffer
 
 
+sealed trait BoxOutgoing[T]
+
 object BoxOutgoing {
 
-  case class BoxUpdate[T](revisionIndex: Long, document: T)
+  case class BoxUpdate[T](revisionIndex: Long, document: T) extends BoxOutgoing[T]
 
-  implicit def boxUpdateFormat[T: Format]: Format[BoxUpdate[T]] = productFormat2[Long, T, BoxUpdate[T]](BoxUpdate.apply)("revisionIndex", "document")
-  
-  def update[T: Format](r: Revision, t: T): Text = {
-    val update = BoxUpdate(r.index, t)
-    val json = JsonIO.toJsonString(r, update)
-    Text(json)
+  implicit def boxOutgoingFormat[T: Format]: Format[BoxOutgoing[T]] = {
+    implicit def boxUpdateFormat[U: Format]: Format[BoxUpdate[U]] = 
+      productFormat2[Long, U, BoxUpdate[U]](BoxUpdate.apply)("revisionIndex", "document")
+
+      taggedUnionFormat[BoxOutgoing[T]](
+      {
+        case "update" => boxUpdateFormat[T]
+      },
+      {
+        case u: BoxUpdate[T] => Tagged("update", u)
+      }
+    )
   }
   
+  def update[T: Format](r: Revision, t: T, ids: Ids): Text = {
+    val update = BoxUpdate(r.index, t)
+    val json = JsonIO.toJsonStringFromRevision(r, update, ids)
+    Text(json)
+  }
+
 }
 

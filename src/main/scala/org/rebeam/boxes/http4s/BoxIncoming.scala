@@ -39,10 +39,10 @@ import scala.collection.mutable.ArrayBuffer
 
 //The "command" part of each incoming message, which determines what to
 //do with the "data" part. Can be run when provided with a model to run on, 
-//and the data tokens.
+//and the data tokens, and Ids to identify boxes/nodes etc..
 sealed trait BoxIncomingCommand {
   def revisionIndex: Long
-  def run[M: Format](model: M)(dataTokens: List[Token])
+  def run[M: Format](model: M, ids: Ids, dataTokens: List[Token])
 }
 
 object BoxIncomingCommand {
@@ -52,15 +52,19 @@ object BoxIncomingCommand {
     * is up to.
     */
   case class Ping(revisionIndex: Long) extends BoxIncomingCommand {
-    def run[M: Format](model: M)(dataTokens: List[Token]) = {}
+    def run[M: Format](model: M, ids: Ids, dataTokens: List[Token])= {}
   }
   /**
     * Trigger replacement of the contents of Box with given boxId.
     * The new contents are decoded from the data tokens.
     */
   case class Replace(revisionIndex: Long, boxId: Long) extends BoxIncomingCommand {
-    def run[M: Format](model: M)(dataTokens: List[Token]): Unit = {
-      Shelf.runRepeatedReader(implicitly[Format[M]].replace(model, boxId), JsonTokenReader.maximalCasting(BufferTokenReader(dataTokens)))    
+    def run[M: Format](model: M, ids: Ids, dataTokens: List[Token]): Unit = {
+      Shelf.runRepeatedReader(
+        implicitly[Format[M]].replace(model, boxId), 
+        JsonTokenReader.maximalCasting(BufferTokenReader(dataTokens)),
+        ids
+      )    
     }
   }
   /**
@@ -68,8 +72,12 @@ object BoxIncomingCommand {
     * The modification action is decoded from the data tokens.
     */
   case class Modify(revisionIndex: Long, boxId: Long) extends BoxIncomingCommand {
-    def run[M: Format](model: M)(dataTokens: List[Token]): Unit = {
-      Shelf.runRepeatedReader(implicitly[Format[M]].modify(model, boxId), JsonTokenReader.maximalCasting(BufferTokenReader(dataTokens)))    
+    def run[M: Format](model: M, ids: Ids, dataTokens: List[Token]): Unit = {
+      Shelf.runRepeatedReader(
+        implicitly[Format[M]].modify(model, boxId), 
+        JsonTokenReader.maximalCasting(BufferTokenReader(dataTokens)),
+        ids
+      )    
     }    
   }
 }
@@ -79,7 +87,7 @@ object BoxIncomingCommand {
   * tokens that make up the data that command will use.
   */
 case class BoxIncoming(command: BoxIncomingCommand, dataTokens: List[Token]) {
-  def run[M: Format](model: M): Unit = command.run(model)(dataTokens)
+  def run[M: Format](model: M, ids: Ids): Unit = command.run(model, ids, dataTokens)
 }
 
 object BoxIncoming {
@@ -108,7 +116,7 @@ object BoxIncoming {
 
   //FIXME: This is a bit messy.
   @throws [IncorrectTokenException]
-  def apply(s: String): BoxIncoming = {
+  def apply(s: String, ids: Ids = IdsDefault()): BoxIncoming = {
     val tokens = JsonIO.arrayBufferFromJsonString(s)
     
     //We expect at least open array, close array, end token
@@ -121,12 +129,12 @@ object BoxIncoming {
     //First pull out the command
     val readerBuffer = BufferTokenReader(tokens.toList)
     val reader = JsonTokenReader.maximalCasting(readerBuffer)
-    val command = Shelf.runRepeatedReader(boxIncomingCommandFormat.read, reader)._2
+    val command = Shelf.runRepeatedReader(boxIncomingCommandFormat.read, reader, ids)._2
     
     //We now just have the tokens for the data left in the reader buffer
     val dataTokens = readerBuffer.remainingTokens
 
-    //Here's our incoming message
+    //Here's our incoming message 
     BoxIncoming(command, dataTokens)
   }
   
